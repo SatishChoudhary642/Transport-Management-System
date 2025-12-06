@@ -95,7 +95,19 @@ public class BidService {
                 .collect(Collectors.toList());
     }
 
-    // Helper: The Math Formula
+    // Reject Bid
+    public void rejectBid(UUID bidId) {
+        Bid bid = bidRepository.findById(bidId)
+                .orElseThrow(() -> new ResourceNotFoundException("Bid not found"));
+        
+        if (bid.getStatus() != BidStatus.PENDING) {
+            throw new InvalidStatusTransitionException("Can only reject PENDING bids");
+        }
+        
+        bid.setStatus(BidStatus.REJECTED);
+        bidRepository.save(bid);
+    }
+
     private double calculateScore(Bid bid) {
         double rate = bid.getProposedRate();
         double rating = bid.getTransporter().getRating();

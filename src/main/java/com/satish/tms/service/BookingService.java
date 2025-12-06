@@ -113,6 +113,41 @@ public class BookingService {
         return mapToDTO(booking);
     }
 
+    @Transactional
+    public void cancelBooking(UUID bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+
+        if (booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new InvalidStatusTransitionException("Booking is already cancelled");
+        }
+
+        // 1. Update Booking Status
+        booking.setStatus(BookingStatus.CANCELLED);
+        bookingRepository.save(booking);
+
+        // 2. Restore Trucks to Transporter (Rule 1)
+        Transporter transporter = booking.getTransporter();
+        Load load = booking.getLoad();
+
+        TransporterTruck truckRecord = transporter.getAvailableTrucks().stream()
+                .filter(t -> t.getTruckType().equals(load.getTruckType()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Truck record mismatch"));
+
+        truckRecord.setTruckCount(truckRecord.getTruckCount() + booking.getAllocatedTrucks());
+        transporterRepository.save(transporter);
+
+        // 3. Update Load Status (Optional logic: If load was BOOKED, make it OPEN_FOR_BIDS again?)
+        // The requirements [cite: 60] say BOOKED -> CANCELLED, but for the Load itself, 
+        // if a booking is cancelled, the Load might still be valid for other bids.
+        // For simplicity/safety, we will flip the Load back to OPEN_FOR_BIDS if it was BOOKED.
+        if (load.getStatus() == LoadStatus.BOOKED) {
+            load.setStatus(LoadStatus.OPEN_FOR_BIDS);
+            loadRepository.save(load);
+        }
+    }
+
     // Helper
     private BookingDTO mapToDTO(Booking booking) {
         BookingDTO dto = new BookingDTO();
