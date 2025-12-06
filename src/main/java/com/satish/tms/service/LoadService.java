@@ -72,6 +72,19 @@ public class LoadService {
         return mapToDTO(load);
     }
 
+    public void cancelLoad(UUID loadId) {
+        Load load = loadRepository.findById(loadId)
+                .orElseThrow(() -> new ResourceNotFoundException("Load not found"));
+        
+        // Rule: Cannot cancel if already booked
+        if (load.getStatus() == LoadStatus.BOOKED) {
+            throw new IllegalStateException("Cannot cancel a LOAD that is already BOOKED");
+        }
+        
+        load.setStatus(LoadStatus.CANCELLED);
+        loadRepository.save(load);
+    }
+
     // Helper Method: Convert Entity -> DTO
     private LoadDTO mapToDTO(Load load) {
         LoadDTO dto = new LoadDTO();
